@@ -4,18 +4,14 @@ import stripe
 
 app = Flask(__name__)
 
-# ⚠️ Mets ta clé secrète LIVE ici
+# ⚠️ Mets ta clé secrète Stripe dans Render (pas en dur ici)
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
-YOUR_DOMAIN = "https://paiement-stripe.onrender.com"
+YOUR_DOMAIN = "https://paiement-eleves.onrender.com"  # sera remplacé par ton URL Render
 
-# Page d’accueil
 @app.route("/")
 def home():
     return """
-    <h2>Professeur : créer ton compte Stripe</h2>
-    <a href='/onboard-prof'><button>Créer mon compte Stripe</button></a>
-    <br><br>
     <h2>Élève : payer une facture</h2>
     <a href='/checkout?amount=100'><button>Payer 100 CHF</button></a>
     <a href='/checkout?amount=200'><button>Payer 200 CHF</button></a>
@@ -23,26 +19,10 @@ def home():
     <p>👉 Tu peux aussi modifier l’URL comme ça : /checkout?amount=150</p>
     """
 
-# 1️⃣ Onboarding professeurs
-@app.route("/onboard-prof")
-def onboard_prof():
-    account = stripe.Account.create(type="express")
-    account_link = stripe.AccountLink.create(
-        account=account.id,
-        refresh_url=f"{YOUR_DOMAIN}/onboard-prof",
-        return_url=f"{YOUR_DOMAIN}/success-prof",
-        type="account_onboarding",
-    )
-    return redirect(account_link.url)
-
-@app.route("/success-prof")
-def success_prof():
-    return "✅ Compte professeur créé avec succès !"
-
-# 2️⃣ Paiement élève avec Checkout
 @app.route("/checkout")
 def checkout():
     try:
+        # Récupère le montant depuis l’URL (par ex: /checkout?amount=120)
         amount = int(request.args.get("amount", 100)) * 100  # en centimes
 
         session = stripe.checkout.Session.create(
@@ -56,23 +36,23 @@ def checkout():
                 "quantity": 1,
             }],
             mode="payment",
-            success_url=f"{YOUR_DOMAIN}/success-eleve",
-            cancel_url=f"{YOUR_DOMAIN}/cancel-eleve",
+            success_url=f"{YOUR_DOMAIN}/success",
+            cancel_url=f"{YOUR_DOMAIN}/cancel",
         )
         return redirect(session.url, code=303)
 
     except Exception as e:
         return jsonify(error=str(e)), 400
 
-@app.route("/success-eleve")
-def success_eleve():
+@app.route("/success")
+def success():
     return "✅ Paiement élève réussi ! Merci."
 
-@app.route("/cancel-eleve")
-def cancel_eleve():
+@app.route("/cancel")
+def cancel():
     return "❌ Paiement annulé par l’élève."
 
-# Lancement local
+# Local test
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
 
