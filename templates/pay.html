@@ -2,46 +2,63 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Paiement et Onboarding</title>
+  <title>Paiement Élève</title>
   <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f6fa; display:flex; justify-content:center; align-items:center; height:100vh; }
+    .container { background:#fff; padding:30px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1); width:400px; text-align:center; }
+    h2 { margin-bottom:20px; }
+    #card-element { border:1px solid #ccc; padding:12px; border-radius:6px; margin-bottom:20px; }
+    button { background:#4a61e0; color:white; border:none; padding:12px; border-radius:6px; cursor:pointer; width:100%; }
+    #status { margin-top:15px; font-size:14px; }
+  </style>
 </head>
 <body>
-  <h2>Professeur : créer ton compte Stripe</h2>
-  <button id="createAccountBtn">Créer mon compte Stripe</button>
-
-  <h2>Élève : payer une facture</h2>
-  <button id="checkoutBtn">Payer 100 CHF</button>
+  <div class="container">
+    <h2>Paiement Élève (100 CHF)</h2>
+    <div id="card-element"></div>
+    <button id="payBtn">Payer</button>
+    <div id="status"></div>
+  </div>
 
   <script>
-    // ✅ Onboarding du prof
-    document.getElementById("createAccountBtn").addEventListener("click", async () => {
-      const res = await fetch("/create-account", { method: "POST" });
-      const data = await res.json();
-      if (data.onboarding_url) {
-        window.location.href = data.onboarding_url; // redirige vers Stripe
-      } else {
-        alert("Erreur: " + data.error);
-      }
-    });
+    const stripe = Stripe("pk_live_51QrLBjINyasHfo0CrEydqiRJoLnoYLkUf0hwK4lDIHVkNir25nV52gPXBxf7yrxvCoQO3QM11rydBidcuxLKSC7K00DR6gmQnn");
 
-    // ✅ Paiement élève avec split
-    document.getElementById("checkoutBtn").addEventListener("click", async () => {
-      const res = await fetch("/create-checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: 10000, // 100 CHF
-          prof_account_id: "acct_123456789" // ⚠️ Mets l'ID réel du prof
-        })
-      });
+    const elements = stripe.elements();
+    const cardElement = elements.create("card");
+    cardElement.mount("#card-element");
 
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url; // redirige vers Stripe Checkout
-      } else {
-        alert("Erreur: " + data.error);
+    const payBtn = document.getElementById("payBtn");
+    const status = document.getElementById("status");
+
+    payBtn.addEventListener("click", async () => {
+      payBtn.disabled = true;
+      status.textContent = "⏳ Paiement en cours...";
+
+      try {
+        const res = await fetch("/create-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const data = await res.json();
+
+        const result = await stripe.confirmCardPayment(data.client_secret, {
+          payment_method: { card: cardElement }
+        });
+
+        if (result.error) {
+          status.textContent = "❌ " + result.error.message;
+        } else if (result.paymentIntent.status === "succeeded") {
+          status.textContent = "✅ Paiement réussi ! Merci.";
+        }
+      } catch (err) {
+        status.textContent = "⚠️ Erreur : " + err.message;
       }
+
+      payBtn.disabled = false;
     });
   </script>
 </body>
 </html>
+
