@@ -4,10 +4,10 @@ import stripe
 
 app = Flask(__name__)
 
-# ⚠️ Mets ta clé secrète Stripe dans Render (pas en dur ici)
+# ⚠️ Mets ta clé secrète dans Render (Settings > Environment)
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
-YOUR_DOMAIN = "https://paiement-eleves.onrender.com"  # sera remplacé par ton URL Render
+YOUR_DOMAIN = "https://paiement-eleves.onrender.com"  # ton URL Render
 
 @app.route("/")
 def home():
@@ -22,7 +22,6 @@ def home():
 @app.route("/checkout")
 def checkout():
     try:
-        # Récupère le montant depuis l’URL (par ex: /checkout?amount=120)
         amount = int(request.args.get("amount", 100)) * 100  # en centimes
 
         session = stripe.checkout.Session.create(
@@ -52,7 +51,7 @@ def success():
 def cancel():
     return "❌ Paiement annulé par l’élève."
 
-# Local test
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
+
 
