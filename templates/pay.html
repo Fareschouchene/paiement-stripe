@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Paiement et Onboarding</title>
+  <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+  <h2>Professeur : créer ton compte Stripe</h2>
+  <button id="createAccountBtn">Créer mon compte Stripe</button>
+
+  <h2>Élève : payer une facture</h2>
+  <button id="checkoutBtn">Payer 100 CHF</button>
+
+  <script>
+    // ✅ Onboarding du prof
+    document.getElementById("createAccountBtn").addEventListener("click", async () => {
+      const res = await fetch("/create-account", { method: "POST" });
+      const data = await res.json();
+      if (data.onboarding_url) {
+        window.location.href = data.onboarding_url; // redirige vers Stripe
+      } else {
+        alert("Erreur: " + data.error);
+      }
+    });
+
+    // ✅ Paiement élève avec split
+    document.getElementById("checkoutBtn").addEventListener("click", async () => {
+      const res = await fetch("/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: 10000, // 100 CHF
+          prof_account_id: "acct_123456789" // ⚠️ Mets l'ID réel du prof
+        })
+      });
+
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url; // redirige vers Stripe Checkout
+      } else {
+        alert("Erreur: " + data.error);
+      }
+    });
+  </script>
+</body>
+</html>
