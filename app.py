@@ -1,65 +1,78 @@
 import os
+from flask import Flask, request, redirect, jsonify
 import stripe
-from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 
-# Clé secrète Stripe depuis Render
+# ⚠️ Mets ta clé secrète LIVE ici
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
+YOUR_DOMAIN = "https://paiement-stripe.onrender.com"
+
+# Page d’accueil
 @app.route("/")
 def home():
     return """
     <h2>Professeur : créer ton compte Stripe</h2>
-    <a href='/profs'><button>Créer mon compte Stripe</button></a>
-
+    <a href='/onboard-prof'><button>Créer mon compte Stripe</button></a>
+    <br><br>
     <h2>Élève : payer une facture</h2>
-    <a href='/eleves'><button>Payer 100 CHF</button></a>
+    <a href='/checkout?amount=100'><button>Payer 100 CHF</button></a>
+    <a href='/checkout?amount=200'><button>Payer 200 CHF</button></a>
+    <a href='/checkout?amount=300'><button>Payer 300 CHF</button></a>
+    <p>👉 Tu peux aussi modifier l’URL comme ça : /checkout?amount=150</p>
     """
 
-# -----------------------------
-# Page paiement élève
-# -----------------------------
-@app.route("/eleves", methods=["GET"])
-def eleves():
-    # Affiche la page HTML avec Stripe Elements
-    return render_template("pay.html")
+# 1️⃣ Onboarding professeurs
+@app.route("/onboard-prof")
+def onboard_prof():
+    account = stripe.Account.create(type="express")
+    account_link = stripe.AccountLink.create(
+        account=account.id,
+        refresh_url=f"{YOUR_DOMAIN}/onboard-prof",
+        return_url=f"{YOUR_DOMAIN}/success-prof",
+        type="account_onboarding",
+    )
+    return redirect(account_link.url)
 
-@app.route("/create-payment", methods=["POST"])
-def create_payment():
+@app.route("/success-prof")
+def success_prof():
+    return "✅ Compte professeur créé avec succès !"
+
+# 2️⃣ Paiement élève avec Checkout
+@app.route("/checkout")
+def checkout():
     try:
-        intent = stripe.PaymentIntent.create(
-            amount=10000,   # 100 CHF en centimes
-            currency="chf",
-            payment_method_types=["card"]
+        amount = int(request.args.get("amount", 100)) * 100  # en centimes
+
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "chf",
+                    "product_data": {"name": "Paiement cours particulier"},
+                    "unit_amount": amount,
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=f"{YOUR_DOMAIN}/success-eleve",
+            cancel_url=f"{YOUR_DOMAIN}/cancel-eleve",
         )
-        return jsonify(client_secret=intent.client_secret)
+        return redirect(session.url, code=303)
+
     except Exception as e:
         return jsonify(error=str(e)), 400
 
-# -----------------------------
-# Page professeurs (onboarding)
-# -----------------------------
-@app.route("/profs", methods=["GET"])
-def profs():
-    return """
-    <h1>Inscription Professeur</h1>
-    <p><a href='/onboard-prof'><button>➡️ Créer mon compte Stripe</button></a></p>
-    """
+@app.route("/success-eleve")
+def success_eleve():
+    return "✅ Paiement élève réussi ! Merci."
 
-@app.route("/onboard-prof", methods=["GET"])
-def onboard_prof():
-    account = stripe.Account.create(type="express")
+@app.route("/cancel-eleve")
+def cancel_eleve():
+    return "❌ Paiement annulé par l’élève."
 
-    account_link = stripe.AccountLink.create(
-        account=account.id,
-        refresh_url="https://paiement-stripe.onrender.com/profs",
-        return_url="https://paiement-stripe.onrender.com/profs",
-        type="account_onboarding"
-    )
-
-    return f"<a href='{account_link.url}'><button>➡️ Compléter l’inscription Stripe</button></a>"
-
+# Lancement local
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(port=5000, debug=True)
 
